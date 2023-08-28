@@ -1,7 +1,7 @@
 #! /usr/bin/env python
 
 import sys
-import work_queue as wq
+import ndcctools.work_queue as wq
 
 port_file = None
 try:
@@ -59,3 +59,4 @@ while not queue.empty():
 
 assert(positive_sum == (-1 * negative_sum))
 
+# vim: set sts=4 sw=4 ts=4 expandtab ft=python:

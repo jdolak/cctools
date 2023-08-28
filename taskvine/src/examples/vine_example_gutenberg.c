@@ -1,10 +1,4 @@
 /*
-Copyright (C) 2022- The University of Notre Dame
-This software is distributed under the GNU General Public License.
-See the file COPYING for details.
-*/
-
-/*
 This example shows some of the remote data handling features of taskvine.
 It performs an all-to-all comparison of twenty (relatively small) documents
 downloaded from the Gutenberg public archive.
@@ -52,14 +46,19 @@ const char *urls[URL_COUNT] =
 "https://www.gutenberg.org/files/1986/1986.txt",
 };
 
+const char *compare_script =
+"#!/bin/sh\n\
+# Perform a simple comparison of the words counts of each document\n\
+# which are given as the first ($1) and second ($2) command lines.\n\
+cat $1 | tr \" \" \"\\n\" | sort | uniq -c | sort -rn | head -10l > a.tmp\n\
+cat $2 | tr \" \" \"\\n\" | sort | uniq -c | sort -rn | head -10l > b.tmp\n\
+diff a.tmp b.tmp\nexit 0\n";
+
 int main(int argc, char *argv[])
 {
 	struct vine_manager *m;
 	struct vine_task *t;
 	int i,j ;
-
-	//runtime logs will be written to vine_example_gutenberg_info/%Y-%m-%dT%H:%M:%S
-	vine_set_runtime_info_path("vine_example_gutenberg_info");
 
 	m = vine_create(VINE_DEFAULT_PORT);
 	if(!m) {
@@ -69,11 +68,11 @@ int main(int argc, char *argv[])
 	printf("listening on port %d...\n", vine_port(m));
 
 	printf("setting up input files...\n");
-	struct vine_file *script = vine_declare_file(m, "vine_example_gutenberg_script.sh");
+	struct vine_file *script = vine_declare_buffer(m, compare_script, strlen(compare_script), VINE_CACHE);
 	struct vine_file *files[URL_COUNT];
 
 	for(i=0;i<URL_COUNT;i++) {
-		files[i] = vine_declare_url(m, urls[i]);
+		files[i] = vine_declare_url(m, urls[i], VINE_CACHE);
 	}
 
 	printf("submitting tasks...\n");
@@ -81,9 +80,9 @@ int main(int argc, char *argv[])
 		for(j=0;j<URL_COUNT;j++) {
 			struct vine_task *t = vine_task_create("./vine_example_gutenberg_script.sh filea.txt fileb.txt");
 
-			vine_task_add_input(t,script,"vine_example_gutenberg_script.sh",VINE_CACHE);
-			vine_task_add_input(t,files[i], "filea.txt", VINE_CACHE);
-			vine_task_add_input(t,files[j], "fileb.txt", VINE_CACHE);
+			vine_task_add_input(t, script, "vine_example_gutenberg_script.sh", 0);
+			vine_task_add_input(t, files[i], "filea.txt", 0);
+			vine_task_add_input(t, files[j], "fileb.txt", 0);
 
 			vine_task_set_cores(t,1);
 
@@ -117,4 +116,4 @@ int main(int argc, char *argv[])
 	return 0;
 }
 
-/* vim: set noexpandtab tabstop=4: */
+/* vim: set noexpandtab tabstop=8: */

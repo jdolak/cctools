@@ -15,12 +15,13 @@ analyzes a Python script to determine all its top-level module dependencies and 
 
 Suppose you have a Python program `example.py` like this:
 
-```
+```python
 import os
 import sys
 import pickle
 import matplotlib
 import numpy
+import uproot
 
 
 if __name__ == "__main__":
@@ -29,32 +30,34 @@ if __name__ == "__main__":
 
 To analyze the `example.py` script for its dependencies:
 
-```
+```sh
 poncho_package_analyze example.py package.json
 ```
 
 This will create `package.json` with contents similar to this:
 
 
-```
+```json
 {
-	"conda":{
-		"channels":[
-			"defaults"
-			"conda-forge"
-		]
-		"dependencies":[
-                	"python=3.8.5=h7579374_1"
-	        	"matplotlib=3.3.4=py38h06a4308_0",
-			"pip=20.2.4=py38h06a4308_0",
-			{
-				"pip":[
-					numpy==1.21
-				]
-			}
-		]
-	}
+    "conda": {
+        "channels": [
+            "conda-forge"
+        ],
+        "dependencies": [
+            "matplotlib=3.7.1=py311h38be061_0",
+            "numpy=1.24.2=py311h8e6699e_0",
+            "pip=23.0.1=pyhd8ed1ab_0",
+            "python=3.11.0=he550d4f_1_cpython",
+            {
+                "pip": [
+                    "uproot==5.0.5"
+                ]
+            }
+        ]
+    }
 }
+
+
 ```
 
 Then to create a complete package from the specification:
@@ -101,38 +104,37 @@ or system-specific details where possible.
 
 ### Conda Packages
 
-```
-{
-	"conda":{
-		"channels":[
-			"defaults"
-			"conda-forge"
-		]
-		"dependencies":[
-                	"python=3.8.5=h7579374_1"
-	        	"matplotlib=3.3.4=py38h06a4308_0",
-			"pip=20.2.4=py38h06a4308_0",
-			{
-				"pip":[
-					numpy==1.21
-				]
-			}
-		]
-	}
+```json
 
+{
+    "conda": {
+        "channels": [
+            "conda-forge"
+        ],
+        "dependencies": [
+            "python=3.11.0=he550d4f_1_cpython",
+            "numpy=1.24",
+            "matplotlib",
+            "pip",
+            {
+                "pip": [
+                    "uproot==5.0.5"
+                ]
+            }
+        ]
+    },
+}
 ```
 
 The `"conda"` key, if present, gives a list of channels and packages.
-Each package must be a valid Conda package specification.
+Each package must be a valid Conda package specification, such as:
 
 
-```
-package=version=build
-```
+    - package: e.g., `python`
+    - package and version: e.g., `python=3.11`
+    - package, version, and build: e.g., `python=3.11=he550d4f_1_cpython`
 
-if coming from an existing user install. This is because the
-particular build in use may affect performance and functionality
-(e.g. whether GPU support is available).
+
 Conda supports a fairly rich syntax, documented
 [here](https://docs.conda.io/projects/conda/en/latest/user-guide/concepts/pkg-specs.html#package-match-specifications).
 Implementers should use the `conda.models.match_spec.MatchSpec`
@@ -183,35 +185,9 @@ If a local pip package is listed within the specification, the pip package must 
 into the user's current environment to be included.
 
 
-The previous format of the specifition is accepted to use aswell.
-
-```
-{
-
-"conda": {
-
-        "channels": [
-            "conda-forge"
-        ],
-
-        "packages": [
-            "matplotlib=3.5.1=py310h06a4308_1",
-            "numpy=1.23.1=py310h1794996_0",
-            "pip=22.1.2=py310h06a4308_0",
-            "python=3.10.4=h12debd9_0"
-        ]
-        },
-
-        "pip": [
-            "bs4==0.0.1"
-        ]
-}
-
-```
-
 ### Git Repository
 
-```
+```json
 {
 	"git": {
 		"DATA_DIR": {
@@ -238,7 +214,7 @@ frequently used repositories available for fast access.
 
 ### HTTP Fetch
 
-```
+```json
 {
 	"http": {
 		"REFERENCE_DB": {
@@ -267,3 +243,37 @@ file will be passed through `tar` and extracted into a temporary
 directory (`tar -C`). The path to this directory will be stored
 in the corresponding enviornment variable. If "compression" is
 specified, the file will be decompressed.
+
+## Creating Poncho Packages From Existing Conda Environments
+
+If the input to poncho\_package\_create is the path to a conda env directory, poncho\_package\_run
+will package that directory as a poncho package. If the input is neither a file or directory poncho\_package\_run 
+will attempt to pack an environment of the same name from the users local conda environments.
+
+
+## Creating Poncho Packages Within Python
+
+The poncho module allows users to create poncho packages within python itself.
+
+### creating packages with a specification
+
+Poncho packages can either be created by dicitionary or string representations of a poncho specification.
+The function `dict_to_env` creates the corresponding environment and returns the path to the environment.
+The function contains various options to facilitate environment creation:
+	
+	- cache(default=True): caches the environment in the directory set by `cache_path` 
+	- cache_path(default='.poncho_cache'): Path to cache and retrieve generated environments.
+	- force(default=False): forces poncho_package_create to recreate the environment.
+
+If no cache path is specified, cached environments will be stored in the directory `.poncho_cache`.
+When force is not set to True and the environment corresponding to the specification is present in the cache,
+the path to the cached environment will be returned.
+
+```python
+
+	from poncho import package_create
+
+	spec1 = {"conda": {"channels": ["conda-forge"],"packages": ["python","pip","conda","conda-pack","dill","xrootd"]},"pip": ["matplotlib"]}
+	env = package_create.dict_to_env(spec, cache=True, cache_path='my_cache', force=False)
+```
+

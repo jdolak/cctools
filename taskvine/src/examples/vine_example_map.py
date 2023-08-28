@@ -1,16 +1,9 @@
 #!/usr/bin/env python
 
-# Copyright (C) 2022- The University of Notre Dame
-# This software is distributed under the GNU General Public License.
-# See the file COPYING for details.
+# Example program to show use of map() abstraction
+# which generates PythonTasks automatically.
 
-# This example shows how to declare an xrootd file so that it can be cached at
-# the workers.
-# It assumes that uproot is installed where workers are executed. If this is
-# not the case, a poncho recipe to construct this environment is:
-#
-
-import taskvine as vine
+import ndcctools.taskvine as vine
 import sys
 
 def calc_age(birth_year):
@@ -26,7 +19,6 @@ birth_years = [
         1980,1975,1978,1983,1977,
 ]
 
-
 if __name__ == "__main__":
     m = vine.Manager()
     print(f"listening on port {m.port}")
@@ -36,3 +28,4 @@ if __name__ == "__main__":
 
     for (birth_year, age) in zip (birth_years, ages):
         print(f"{birth_year}: {age}")
+# vim: set sts=4 sw=4 ts=4 expandtab ft=python:

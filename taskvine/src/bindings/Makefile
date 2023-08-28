@@ -8,4 +8,9 @@ $(CCTOOLS_SWIG_TASKVINE_BINDINGS):
 
 test: all
 
-.PHONY: all install clean test $(CCTOOLS_SWIG_TASKVINE_BINDINGS)
+lint:
+	@$(MAKE) -C python3 lint
+
+format:
+
+.PHONY: all install clean test lint format $(CCTOOLS_SWIG_TASKVINE_BINDINGS)

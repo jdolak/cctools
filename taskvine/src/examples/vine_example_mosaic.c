@@ -1,10 +1,4 @@
 /*
-Copyright (C) 2022- The University of Notre Dame
-This software is distributed under the GNU General Public License.
-See the file COPYING for details.
-*/
-
-/*
 This example program produces a mosaic of images, each one transformed
 with a different amount of swirl.
 
@@ -36,9 +30,6 @@ int main(int argc, char *argv[])
 	struct vine_manager *m;
 	struct vine_task *t;
 
-	//runtime logs will be written to vine_example_mosaic_info/%Y-%m-%dT%H:%M:%S
-	vine_set_runtime_info_path("vine_example_mosaic_info");
-
 	printf("Checking that /usr/bin/convert is installed...\n");
 	int r = access("/usr/bin/convert",X_OK);
 	if(r!=0) {
@@ -69,8 +60,8 @@ int main(int argc, char *argv[])
 
 	vine_enable_peer_transfers(m);
 
-	struct vine_file *convert = vine_declare_file(m, "convert.sfx");
-	struct vine_file *image = vine_declare_url(m, "https://upload.wikimedia.org/wikipedia/commons/7/74/A-Cat.jpg");
+	struct vine_file *convert = vine_declare_file(m, "convert.sfx", VINE_CACHE);
+	struct vine_file *image = vine_declare_url(m, "https://upload.wikimedia.org/wikipedia/commons/7/74/A-Cat.jpg", VINE_CACHE);
 
 	struct vine_file *temp_file[36];
 
@@ -86,9 +77,9 @@ int main(int argc, char *argv[])
 
 		t = vine_task_create(command);
 
-		vine_task_add_input(t,convert,"convert.sfx",VINE_CACHE);
-		vine_task_add_input(t,image,"cat.jpg", VINE_CACHE );
-		vine_task_add_output(t,temp_file[i],outfile,VINE_CACHE);
+		vine_task_add_input(t,convert,"convert.sfx",0);
+		vine_task_add_input(t,image,"cat.jpg",0);
+		vine_task_add_output(t,temp_file[i],outfile,0);
 
 		vine_task_set_cores(t,1);
 
@@ -120,10 +111,11 @@ int main(int argc, char *argv[])
 	for(i=0;i<36;i++) {
 		char filename[256];
 		sprintf(filename,"%d.cat.jpg",i);
-		vine_task_add_input(t,temp_file[i],filename,VINE_NOCACHE);
+		vine_task_add_input(t,temp_file[i],filename,0);
 	}
-	vine_task_add_input_file(t,"montage.sfx","montage.sfx",VINE_CACHE);
-	vine_task_add_output_file(t,"mosaic.jpg","mosaic.jpg",VINE_NOCACHE);
+
+	vine_task_add_input(t,vine_declare_file(m,"montage.sfx",VINE_CACHE),"montage.sfx",0);
+	vine_task_add_output(t,vine_declare_file(m,"mosaic.jpg",VINE_CACHE_NEVER),"mosaic.jpg",0);
 
 	int task_id = vine_submit(m,t);
 	printf("Submitted task (id# %d): %s\n", task_id, vine_task_get_command(t) );

@@ -1,7 +1,6 @@
 #! /usr/bin/env python3
 
 import sys, json
-import work_queue as wq
 import socket
 import json
 import os
@@ -143,3 +142,4 @@ def exception_test():
 if __name__ == "__main__":
 	main()
 
+# vim: set sts=4 sw=4 ts=4 expandtab ft=python:

@@ -1,4 +1,7 @@
-import taskvine as vine
+# This example program shows the use of the pair()
+# abstraction to generate all pairs of several values.
+
+import ndcctools.taskvine as vine
 import sys
 
 def make_name(namepair):
@@ -24,3 +27,4 @@ if __name__ == "__main__":
         # some error in execution...
         pass
 
+# vim: set sts=4 sw=4 ts=4 expandtab ft=python:

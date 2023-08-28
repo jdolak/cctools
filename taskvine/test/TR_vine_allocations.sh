@@ -7,7 +7,7 @@ import_config_val CCTOOLS_PYTHON_TEST_EXEC
 import_config_val CCTOOLS_PYTHON_TEST_DIR
 
 export PATH=$(pwd)/../src/worker:$(pwd)/../../batch_job/src:$PATH
-export PYTHONPATH=$(pwd)/../src/bindings/${CCTOOLS_PYTHON_TEST_DIR}:$PYTHONPATH
+export PYTHONPATH=$(pwd)/../../test_support/python_modules/${CCTOOLS_PYTHON_TEST_DIR}:$PYTHONPATH
 
 STATUS_FILE=vine.status
 PORT_FILE=vine.port
@@ -27,14 +27,13 @@ prepare()
 
 run()
 {
-	# worker resources (used by worker in factory in wq_alloc_test.py):
 	cores=4
 	memory=2000
 	disk=2000
 	gpus=8
 
-	# send makeflow to the background, saving its exit status.
-	${CCTOOLS_PYTHON_TEST_EXEC} vine_alloc_test.py $PORT_FILE $cores $memory $disk $gpus; echo $? > $STATUS_FILE
+	# send taskvine to the background, saving its exit status.
+	${CCTOOLS_PYTHON_TEST_EXEC} vine_allocations.py $PORT_FILE $cores $memory $disk $gpus; echo $? > $STATUS_FILE
 
 	# retrieve wq script exit status
 	status=$(cat $STATUS_FILE)

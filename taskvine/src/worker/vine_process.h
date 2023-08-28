@@ -9,7 +9,6 @@ See the file COPYING for details.
 
 #include "vine_manager.h"
 #include "vine_task.h"
-#include "vine_cache.h"
 
 #include "timestamp.h"
 #include "path_disk_size_info.h"
@@ -18,7 +17,13 @@ See the file COPYING for details.
 #include <sys/types.h>
 #include <sys/resource.h>
 
-#define MAX_BUFFER_SIZE 4096
+typedef enum {
+	VINE_PROCESS_TYPE_STANDARD,   // standard task with command line
+	VINE_PROCESS_TYPE_LIBRARY,   // task providing serverless library
+	VINE_PROCESS_TYPE_FUNCTION,  // task invoking serverless library
+	VINE_PROCESS_TYPE_MINI_TASK, // internal task used to create file
+	VINE_PROCESS_TYPE_TRANSFER,  // internal task used to transfer file
+} vine_process_type_t;
 
 /*
 vine_process is a running instance of a vine_task.
@@ -26,6 +31,7 @@ This object is private to the vine_worker.
 */
 
 struct vine_process {
+	vine_process_type_t type;
 	pid_t pid;
 	vine_result_t result;                // Any of VINE_RESULT_*
 	int exit_code;                 // Exit code, or signal number to task process.
@@ -38,10 +44,21 @@ struct vine_process {
 	char *sandbox;
 	char *tmpdir;                   // TMPDIR per task, expected to be a subdir of sandbox.
 	char *output_file_name;
-	int output_fd;
 
+	/* If a normal task, the details of the task to execute. */
 	struct vine_task *task;
 
+	/* If a function-call task, this is the specific library process to invoke. */
+	struct vine_process *library_process;
+	
+	/* If this is a library process, the links to communicate with the library. */
+	struct link *library_read_link;
+	struct link *library_write_link;
+
+	/* If this is a library process, the number of functions it is currently running. */
+	int functions_running;
+	int max_functions_running;
+	
 	/* expected disk usage by the process. If no cache is used, it is the same as in task. */
 	int64_t disk;
 
@@ -51,21 +68,19 @@ struct vine_process {
 
 	/* state between complete disk measurements. */
 	struct path_disk_size_info *disk_measurement_state;
-
-	/* variables for coprocess funciton calls */
-	struct vine_coprocess *coprocess;
 };
 
-struct vine_process * vine_process_create( struct vine_task *task );
+struct vine_process * vine_process_create( struct vine_task *task, vine_process_type_t type );
 pid_t vine_process_execute( struct vine_process *p );
-void  vine_process_set_exit_status( struct vine_process *p, int status );
+int   vine_process_is_complete( struct vine_process *p );
+int   vine_process_wait( struct vine_process *p );
 void  vine_process_kill( struct vine_process *p );
+int   vine_process_kill_and_wait( struct vine_process *p );
 void  vine_process_delete( struct vine_process *p );
+
+int   vine_process_execute_and_wait( struct vine_process *p );
+
 void  vine_process_compute_disk_needed( struct vine_process *p );
-
-int vine_process_measure_disk(struct vine_process *p, int max_time_on_measurement);
-char *vine_process_get_duty_name(struct vine_process *p);
-
-int vine_process_execute_and_wait( struct vine_task *task, struct vine_cache *cache, struct link *manager );
+int   vine_process_measure_disk(struct vine_process *p, int max_time_on_measurement);
 
 #endif

@@ -29,7 +29,10 @@ int sort_dir(const char *dirname, char ***list, int (*sort) (const char *a, cons
 			n += 1;
 		}
 		closedir(dir);
+	} else {
+		return 0;
 	}
+
 
 	if(sort) {
 		qsort(*list, n, sizeof(char *), (int (*)(const void *, const void *)) sort);
@@ -38,4 +41,10 @@ int sort_dir(const char *dirname, char ***list, int (*sort) (const char *a, cons
 	return 1;
 }
 
-/* vim: set noexpandtab tabstop=4: */
+void sort_dir_free( char **list )
+{
+	free(list);
+}
+
+
+/* vim: set noexpandtab tabstop=8: */

@@ -1,9 +1,5 @@
 #!/usr/bin/env python
 
-# Copyright (C) 2022- The University of Notre Dame
-# This software is distributed under the GNU General Public License.
-# See the file COPYING for details.
-
 # This example program shows the behavior of the watch parameter when adding an
 # output file to a task.
 
@@ -15,24 +11,43 @@
 # task completes, any remaining output is fetched.
 
 # This example runs several instances of the task named
-# vine_example_watch_trickle.sh, which gradually produces output
+# trickle.sh, which gradually produces output
 # every few seconds.  While running the manager program, open
 # up another terminal, and observe that files output.0, output.1,
 # etc are gradually produced throughout the run.
 
-import taskvine as vine
+import ndcctools.taskvine as vine
 import sys
+
+script = """
+#!/bin/sh
+# This is a simple example of a program that gradually
+# produces output over time.  It just logs the current
+# time every second for 30 seconds.
+
+hostname 
+
+for n in $(seq 1 30)
+do
+	sleep 1 
+	date
+done
+
+echo "done!"
+""";
+
 
 if __name__ == "__main__":
     m = vine.Manager()
     print("listening on port", m.port)
 
+    script = m.declare_buffer(script,cache=True)
+    
     n = 3
     for i in range(n):
-        t = vine.Task("./vine_example_watch_trickle.sh > output")
+        t = vine.Task("./trickle.sh > output")
 
-        input_script = m.declare_file("vine_example_watch_trickle.sh")
-        t.add_input(input_script, "vine_example_watch_trickle.sh", cache=True)
+        t.add_input(script, "trickle.sh")
 
         output = m.declare_file(f"output.{i}")
         t.add_output(output, "output", watch=True)
@@ -51,7 +66,7 @@ if __name__ == "__main__":
             elif t.completed():
                 print(f"task {t.id} completed with an executin error, exit code {t.exit_code}")
             else:
-                print(f"task {t.id} failed with status {t.result_string}")
+                print(f"task {t.id} failed with status {t.result}")
 
         # print to the console the contents of the files being watched
         for i in range(n):
@@ -62,3 +77,4 @@ if __name__ == "__main__":
                 pass
 
     print("All tasks complete!")
+# vim: set sts=4 sw=4 ts=4 expandtab ft=python:

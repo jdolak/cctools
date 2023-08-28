@@ -1,10 +1,6 @@
 #!/usr/bin/env python3
 
-# copyright (C) 2021- The University of Notre Dame
-# This software is distributed under the GNU General Public License.
-# See the file COPYING for details.
-
-import taskvine as vine
+import ndcctools.taskvine as vine
 import sys
 
 def find_max(nums):
@@ -25,3 +21,4 @@ if __name__ == "__main__":
 
     print(f"maximum number is {max_number}")
 
+# vim: set sts=4 sw=4 ts=4 expandtab ft=python:

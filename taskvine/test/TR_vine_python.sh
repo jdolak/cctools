@@ -7,7 +7,7 @@ set -e
 import_config_val CCTOOLS_PYTHON_TEST_EXEC
 import_config_val CCTOOLS_PYTHON_TEST_DIR
 
-export PYTHONPATH=$(pwd)/../src/bindings/${CCTOOLS_PYTHON_TEST_DIR}:$PYTHONPATH
+export PYTHONPATH=$(pwd)/../../test_support/python_modules/${CCTOOLS_PYTHON_TEST_DIR}:$PYTHONPATH
 
 STATUS_FILE=vine.status
 PORT_FILE=vine.port
@@ -40,12 +40,12 @@ prepare()
 
 run()
 {
-	( ${CCTOOLS_PYTHON_TEST_EXEC} vine_test.py $PORT_FILE; echo $? > $STATUS_FILE ) &
+	( ${CCTOOLS_PYTHON_TEST_EXEC} vine_python.py $PORT_FILE; echo $? > $STATUS_FILE ) &
 
 	# wait at most 15 seconds for vine to find a port.
 	wait_for_file_creation $PORT_FILE 15
 
-	run_ds_worker $PORT_FILE worker.log
+	run_taskvine_worker $PORT_FILE worker.log
 
 	# wait for vine to exit.
 	wait_for_file_creation $STATUS_FILE 15

@@ -886,6 +886,7 @@ struct rmsummary *rmonitor_measure_process(pid_t pid) {
 	struct rmsummary *tr = rmsummary_create(-1);
 
 	struct rmonitor_process_info p;
+	memset(&p, 0, sizeof(p));
 	p.pid = pid;
 
 	err = rmonitor_poll_process_once(&p);
@@ -1096,4 +1097,4 @@ struct rmsummary *rmonitor_minimonitor(minimonitor_op op, uint64_t pid) {
 	return result;
 }
 
-/* vim: set noexpandtab tabstop=4: */
+/* vim: set noexpandtab tabstop=8: */

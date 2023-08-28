@@ -29,7 +29,7 @@ OBJECTS_LIBRARY = $(SOURCES_LIBRARY:%.c=%.o)
 OBJECTS_WORKER = $(SOURCES_WORKER:%.c=%.o)
 PROGRAMS = work_queue_worker work_queue_status work_queue_example
 PUBLIC_HEADERS = work_queue.h work_queue_catalog.h
-SCRIPTS = work_queue_submit_common condor_submit_workers sge_submit_workers torque_submit_workers pbs_submit_workers slurm_submit_workers work_queue_graph_log
+SCRIPTS = work_queue_submit_common condor_submit_workers sge_submit_workers torque_submit_workers pbs_submit_workers slurm_submit_workers work_queue_graph_log work_queue_graph_workers
 TEST_PROGRAMS = work_queue_example work_queue_test work_queue_test_watch work_queue_priority_test
 TARGETS = $(LIBRARIES) $(PROGRAMS) $(TEST_PROGRAMS) sge_submit_workers bindings
 
@@ -53,8 +53,8 @@ install: all
 	cp $(PROGRAMS) $(SCRIPTS) $(CCTOOLS_INSTALL_DIR)/bin/
 	mkdir -p $(CCTOOLS_INSTALL_DIR)/lib
 	cp $(LIBRARIES) $(CCTOOLS_INSTALL_DIR)/lib/
-	mkdir -p $(CCTOOLS_INSTALL_DIR)/doc
-	cp work_queue_example.c $(CCTOOLS_INSTALL_DIR)/doc/
+	mkdir -p $(CCTOOLS_INSTALL_DIR)/doc/cctools/examples/work_queue/C
+	cp work_queue_example.c $(CCTOOLS_INSTALL_DIR)/doc/cctools/examples/work_queue/C
 	mkdir -p $(CCTOOLS_INSTALL_DIR)/include/cctools
 	cp $(PUBLIC_HEADERS) $(CCTOOLS_INSTALL_DIR)/include/cctools/
 	@$(MAKE) -C bindings install

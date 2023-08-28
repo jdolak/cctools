@@ -427,6 +427,31 @@ void *list_pop_tail(struct list *l) {
 	return item;
 }
 
+void *list_rotate(struct list *l)
+{
+	// If list is empty, return nothing
+	if(!l->head) return 0;
+
+	// If list has a single node, return that value.
+	if(l->head==l->tail) return l->head->data;
+
+	struct list_item *node = l->head;
+
+	// Change head to next item.
+	l->head = node->next;
+	l->head->prev = 0;
+
+	// Change node pointers
+	node->prev = l->tail;
+	node->next = 0;
+
+	// Change tail to point to node
+	l->tail->next = node;
+	l->tail = node;
+
+	return node->data;
+}
+
 void *list_peek_head(struct list *l) {
 	void *item = NULL;
 
@@ -606,4 +631,4 @@ void list_push_priority(struct list *list, list_priority_t p, void *item) {
 		list_cursor_destroy(cur);
 }
 
-/* vim: set noexpandtab tabstop=4: */
+/* vim: set noexpandtab tabstop=8: */

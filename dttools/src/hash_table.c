@@ -317,10 +317,10 @@ acceptable.  Do NOT use for cryptographic purposes.
 */
 
 /* Ignoring implicit-fallthrough warnings, as fallthrough is what we want in the following switch-case */
-static ub4 jenkins_hash(k, length, initval)
-	 register const ub1 *k;	/* the key */
-	 register ub4 length;	/* the length of the key */
-	 register ub4 initval;	/* the previous hash, or an arbitrary value */
+/* *k the key */
+/* length the length of the key */
+/* initval the previous hash, or an arbitrary value */
+static ub4 jenkins_hash(register const ub1 *k, register ub4 length, register ub4 initval)
 {
 	register ub4 a, b, c, len;	/* Set up the internal state */
 	len = length;
@@ -386,4 +386,4 @@ unsigned hash_string(const char *s)
 	return jenkins_hash((const ub1 *) s, strlen(s), 0);
 }
 
-/* vim: set noexpandtab tabstop=4: */
+/* vim: set noexpandtab tabstop=8: */

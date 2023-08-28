@@ -14,6 +14,7 @@ SOURCES = \
 	vine_file.c \
 	vine_mount.c \
 	vine_txn_log.c \
+	vine_taskgraph_log.c \
 	vine_cached_name.c \
 	vine_checksum.c \
 	vine_perf_log.c \
@@ -23,6 +24,7 @@ SOURCES = \
 	vine_blocklist.c \
 	vine_current_transfers.c \
 	vine_file_replica_table.c \
+	vine_fair.c \
 	vine_runtime_dir.c
 
 PUBLIC_HEADERS = taskvine.h
@@ -47,4 +49,16 @@ clean:
 
 test: all
 
-.PHONY: all clean install test 
+lint:
+	if ( ! clang-format -Werror --dry-run --style='file:../../../.clang-format' $(SOURCES));\
+	then\
+		echo  "========================================================";\
+		echo  "NOTICE: Run `make format` to format your latest changes.";\
+		echo  "========================================================";\
+		exit 1;\
+	fi
+
+format:
+	clang-format -i $(SOURCES)
+
+.PHONY: all clean install test lint format

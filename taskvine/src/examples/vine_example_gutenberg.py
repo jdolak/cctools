@@ -1,17 +1,14 @@
 #!/usr/bin/env python
 
-# Copyright (C) 2022- The University of Notre Dame
-# This software is distributed under the GNU General Public License.
-# See the file COPYING for details.
-
 # This example shows some of the remote data handling features of taskvine.
 # It performs an all-to-all comparison of twenty (relatively small) documents
 # downloaded from the Gutenberg public archive.
 
-# A small shell script (vine_example_guteberg_task.sh) is used to perform
+# A small shell script (given inline below) is used to perform
 # a simple text comparison of each pair of files.
 
-import taskvine as vine
+import ndcctools.taskvine as vine
+import argparse
 import sys
 
 urls_sources = [
@@ -43,15 +40,42 @@ urls_sources = [
     "http://www.gutenberg.org/files/1987/1987.txt",
 ]
 
+compare_script="""
+#!/bin/sh
+# Perform a simple comparison of the words counts of each document
+# which are given as the first ($1) and second ($2) command lines.
+cat $1 | tr " " "\n" | sort | uniq -c | sort -rn | head -10l > a.tmp
+cat $2 | tr " " "\n" | sort | uniq -c | sort -rn | head -10l > b.tmp
+diff a.tmp b.tmp
+exit 0
+"""
+
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        prog="vine_example_gutenberg.py",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter
+    )
+
+    parser.add_argument(
+        "--disable-peer-transfers",
+        action="store_true",
+        help="disable transfers among workers.",
+        default=False,
+    )
+
     m = vine.Manager()
     print("listening on port", m.port)
 
+    args = parser.parse_args()
+
+    if args.disable_peer_transfers:
+        m.disable_peer_transfers()
+
     # declare all urls in the manager:
-    urls = map(lambda u: m.declare_url(u), urls_sources)
+    urls = map(lambda u: m.declare_url(u, cache=True), urls_sources)
 
     # script to process the files
-    my_script = m.declare_file("vine_example_gutenberg_script.sh")
+    my_script = m.declare_buffer(compare_script, cache=True)
 
     for (i, url_a) in enumerate(urls):
         for (j, url_b) in enumerate(urls):
@@ -60,10 +84,9 @@ if __name__ == "__main__":
                 continue
 
             t = vine.Task("./my_script file_a.txt file_b.txt")
-            t.add_input(my_script, "my_script", cache=True)
-
-            t.add_input(url_a, "file_a.txt", cache=True)
-            t.add_input(url_b, "file_b.txt", cache=True)
+            t.add_input(my_script, "my_script")
+            t.add_input(url_a, "file_a.txt")
+            t.add_input(url_b, "file_b.txt")
 
             t.set_cores(1)
 
@@ -79,6 +102,7 @@ if __name__ == "__main__":
             elif t.completed():
                 print(f"task {t.id} completed with an executin error, exit code {t.exit_code}")
             else:
-                print(f"task {t.id} failed with status {t.result_string}")
+                print(f"task {t.id} failed with status {t.result}")
 
     print("all tasks complete!")
+# vim: set sts=4 sw=4 ts=4 expandtab ft=python:

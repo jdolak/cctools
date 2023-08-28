@@ -1,10 +1,4 @@
 /*
-Copyright (C) 2022- The University of Notre Dame
-This software is distributed under the GNU General Public License.
-See the file COPYING for details.
-*/
-
-/*
 This example program shows the behavior of the VINE_WATCH flag.
 
 If a task produces output to a file incrementally as it runs,
@@ -15,7 +9,7 @@ and return it to the manager while each task runs.  When the
 task completes, any remaining output is fetched.
 
 This example runs several instances of the task named
-vine_example_watch_trickle.sh, which gradually produces output
+trickle.sh which gradually produces output
 every few seconds.  While running the manager program, open
 up another terminal, and observe that files output.0, output.1,
 etc are gradually produced throughout the run.
@@ -29,13 +23,12 @@ etc are gradually produced throughout the run.
 #include <errno.h>
 #include <unistd.h>
 
+const char *script = "#!/bin/sh\nhostname\nfor n in $(seq 1 30)\ndo\nsleep 1\ndate\ndone\necho \"done!\"\n";
+
 int main(int argc, char *argv[])
 {
 	struct vine_manager *m;
 	struct vine_task *t;
-
-	//runtime logs will be written to vine_example_watch_info/%Y-%m-%dT%H:%M:%S
-	vine_set_runtime_info_path("vine_example_watch_info");
 
 	m = vine_create(VINE_DEFAULT_PORT);
 	if(!m) {
@@ -44,13 +37,17 @@ int main(int argc, char *argv[])
 	}
 	printf("Listening on port %d...\n", vine_port(m));
 
+	struct vine_file *scriptfile = vine_declare_buffer(m,script,strlen(script), VINE_CACHE);
+
 	int i;
 	for(i=0;i<10;i++) {
-		char output[256];
-		sprintf(output,"output.%d",i);
-		t = vine_task_create("./vine_example_watch_trickle.sh > output");
-		vine_task_add_input_file(t, "vine_example_watch_trickle.sh", "vine_example_watch_trickle.sh", VINE_CACHE );
-		vine_task_add_output_file(t, output, "output", VINE_WATCH );
+		char output_name[256];
+		sprintf(output_name,"output.%d",i);
+		struct vine_file *output_file = vine_declare_file(m, output_name, VINE_CACHE);
+
+		t = vine_task_create("./trickle.sh > output");
+		vine_task_add_input(t, scriptfile, "trickle.sh", 0);
+		vine_task_add_output(t, output_file, "output", VINE_WATCH );
 		vine_task_set_cores(t,1);
 		vine_submit(m, t);
 	}

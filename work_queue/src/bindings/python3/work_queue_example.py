@@ -8,7 +8,7 @@
 # It accepts a list of files on the command line.
 # Each file is compressed with gzip and returned to the user.
 
-from work_queue import *
+from ndcctools.work_queue import *
 
 import os
 import sys
@@ -85,3 +85,5 @@ if __name__ == '__main__':
 
   #work queue object will be garbage collected by Python automatically when it goes out of scope
   sys.exit(0)
+# vim: set sts=4 sw=4 ts=4 expandtab ft=python:
+# vim: set sts=4 sw=4 ts=4 expandtab ft=python:

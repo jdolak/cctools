@@ -61,14 +61,14 @@ typedef enum {
 	VINE_WORKER_DISCONNECT_FAILURE
 } vine_worker_disconnect_reason_t;
 
-/* States known about duties */
+/* States known about libraries */
 
 typedef enum {
-	VINE_DUTY_WAITING = 0,
-	VINE_DUTY_SENT,
-	VINE_DUTY_STARTED,
-	VINE_DUTY_FAILURE
-} vine_duty_state_t;
+	VINE_LIBRARY_WAITING = 0,
+	VINE_LIBRARY_SENT,
+	VINE_LIBRARY_STARTED,
+	VINE_LIBRARY_FAILURE
+} vine_library_state_t;
 
 struct vine_worker_info;
 struct vine_task;
@@ -100,9 +100,12 @@ struct vine_manager {
 
 	struct itable *tasks;           /* Maps task_id -> vine_task of all tasks in any state. */
 	struct list   *ready_list;      /* List of vine_task that are waiting to execute. */
+	struct itable   *running_table;      /* Table of vine_task that are running at workers. */
+	struct list   *waiting_retrieval_list;      /* List of vine_task that are waiting to be retrieved. */
+	struct list   *retrieved_list;      /* List of vine_task that have been retrieved. */
 	struct list   *task_info_list;  /* List of last N vine_task_infos for computing capacity. */
 	struct hash_table *categories;  /* Maps category_name -> struct category */
-	struct hash_table *duties;      /* Maps duty name -> vine_task of duty with that name. */
+	struct hash_table *libraries;      /* Maps library name -> vine_task of library with that name. */
 
 	/* Primary data structures for tracking worker state. */
 
@@ -114,7 +117,7 @@ struct vine_manager {
 
 	/* Primary data structures for tracking files. */
 
-    struct hash_table *file_table;      /* Maps fileid -> struct vine_file.* */
+    	struct hash_table *file_table;      /* Maps fileid -> struct vine_file.* */
 
 	/* Primary scheduling controls. */
 
@@ -123,7 +126,7 @@ struct vine_manager {
 
 	/* Internal state modified by the manager */
 
- 	int next_task_id;       /* Next integer task_id to be assigned to a created task. */
+	int next_task_id;       /* Next integer task_id to be assigned to a created task. */
 	int num_tasks_left;    /* Optional: Number of tasks remaining, if given by user.  @ref vine_set_num_tasks */
 	int busy_waiting_flag; /* Set internally in main loop if no messages were processed -> wait longer. */
 
@@ -145,16 +148,16 @@ struct vine_manager {
 	/* Logging configuration. */
 
     char *runtime_directory;
-	FILE *perf_logfile; /* Performance logfile for tracking metrics by time. */
-	FILE *txn_logfile;  /* Transaction logfile for recording every event of interest. */
-
+	FILE *perf_logfile;        /* Performance logfile for tracking metrics by time. */
+	FILE *txn_logfile;         /* Transaction logfile for recording every event of interest. */
+	FILE *graph_logfile;       /* Graph logfile for visualizing application structure. */
+	int perf_log_interval;	   /* Minimum interval for performance log entries in seconds. */
+	
 	/* Resource monitoring configuration. */
 
 	vine_monitoring_mode_t monitor_mode;
-	FILE *monitor_file;
-	char *monitor_output_directory;
-	char *monitor_summary_filename;
-	char *monitor_exe;
+	struct vine_file *monitor_exe;
+    int monitor_interval;
 
 	struct rmsummary *measured_local_resources;
 	struct rmsummary *current_max_worker;
@@ -175,9 +178,12 @@ struct vine_manager {
 	int keepalive_interval;	      /* Time between keepalive request transmissions. */
 	int keepalive_timeout;	      /* Keepalive response must be received within this time, otherwise worker disconnected. */
 	int hungry_minimum;           /* Minimum number of waiting tasks to consider queue not hungry. */
-	int wait_for_workers;         /* wait for these many workers to connect before dispatching tasks at start of execution. */
+	int wait_for_workers;         /* Wait for these many workers to connect before dispatching tasks at start of execution. */
+	int attempt_schedule_depth;   /* number of submitted tasks to attempt scheduling before we continue to retrievals */
+    int max_retrievals;           /* Do at most this number of task retrievals of either receive_one_task or receive_all_tasks_from_worker. If less
+                                     than 1, prefer to receive all completed tasks before submitting new tasks. */
+	int worker_retrievals;        /* retrieve all completed tasks from a worker as opposed to recieving one of any completed task*/
 	int fetch_factory;            /* If true, manager queries catalog for factory configuration. */
-	int wait_retrieve_many;       /* If true, main loop consumes multiple completed tasks at once. */
 	int proportional_resources;   /* If true, tasks divide worker resources proportionally. */
 	int proportional_whole_tasks; /* If true, round-up proportions to whole number of tasks. */
 	double resource_submit_multiplier; /* Factor to permit overcommitment of resources at each worker.  */
@@ -190,10 +196,10 @@ These are not public API functions, but utility methods that may
 be called on the manager object by other elements of the manager process.
 */
 
-/* Declares file f. If a file with the same f->file_id is already declared, f
+/* Declares file f. If a file with the same f->cached_name is already declared, f
  * is ****deleted**** and the previous file is returned. Otherwise f is returned. */
 struct vine_file *vine_manager_declare_file(struct vine_manager *m, struct vine_file *f);
-struct vine_file *vine_manager_lookup_file(struct vine_manager *q, const char *file_id);
+struct vine_file *vine_manager_lookup_file(struct vine_manager *q, const char *cached_name);
 
 /* Send a printf-style message to a remote worker. */
 #ifndef SWIG
@@ -205,41 +211,25 @@ int vine_manager_send( struct vine_manager *q, struct vine_worker_info *w, const
 vine_msg_code_t vine_manager_recv( struct vine_manager *q, struct vine_worker_info *w, char *line, int length );
 
 /* Compute the expected wait time for a transfer of length bytes. */
-int vine_manager_transfer_time( struct vine_manager *q, struct vine_worker_info *w, struct vine_task *t, int64_t length );
+int vine_manager_transfer_time( struct vine_manager *q, struct vine_worker_info *w, int64_t length );
 
 /* Various functions to compute expected properties of tasks. */
 const struct rmsummary *vine_manager_task_resources_min(struct vine_manager *q, struct vine_task *t);
 const struct rmsummary *vine_manager_task_resources_max(struct vine_manager *q, struct vine_task *t);
 
+/* Internal: Find a library task running on a specific worker by name. */
+struct vine_task *vine_manager_find_library_on_worker( struct vine_manager *q, struct vine_worker_info *w, const char *library_name);
+
+/* Internal: Enable shortcut of main loop upon child process completion. Needed for Makeflow to interleave local and remote execution. */
+void vine_manager_enable_process_shortcut(struct vine_manager *q);
+
 struct rmsummary *vine_manager_choose_resources_for_task( struct vine_manager *q, struct vine_worker_info *w, struct vine_task *t );
 
 int64_t overcommitted_resource_total(struct vine_manager *q, int64_t total);
 
-/** Turn on the debugging log output and send to the named file.
- * (Note it does not need the vine_manager structure, as it is enabled before
- * the manager is created.)
-@param logfile The filename.
-@return 1 if logfile was opened, 0 otherwise.
-*/
-int vine_enable_debug_log( const char *logfile );
-
-/** Add a performance log file that records cummulative statistics of the connected workers and submitted tasks.
-@param m A manager object
-@param logfile The filename.
-@return 1 if logfile was opened, 0 otherwise.
-*/
-int vine_enable_perf_log(struct vine_manager *m, const char *logfile);
-
-/** Add a log file that records the states of the connected workers and tasks.
-@param m A manager object
-@param logfile The filename.
-@return 1 if logfile was opened, 0 otherwise.
-*/
-int vine_enable_transactions_log(struct vine_manager *m, const char *logfile);
-
 
 /* The expected format of files created by the resource monitor.*/
-#define RESOURCE_MONITOR_TASK_LOCAL_NAME "vine-%d-task-%d"
+#define RESOURCE_MONITOR_TASK_LOCAL_NAME "vine-task-%d"
 #define RESOURCE_MONITOR_REMOTE_NAME "cctools-monitor"
 #define RESOURCE_MONITOR_REMOTE_NAME_EVENTS RESOURCE_MONITOR_REMOTE_NAME "events.json"
 

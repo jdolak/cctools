@@ -1,10 +1,4 @@
 /*
-Copyright (C) 2022- The University of Notre Dame
-This software is distributed under the GNU General Public License.
-See the file COPYING for details.
-*/
-
-/*
 An example of a task using a minitask (vine_declare_poncho) to unpack a dependency before using it.
 */
 
@@ -22,9 +16,6 @@ int main(int argc, char *argv[])
 	struct vine_task *t;
 	int i;
 
-	// runtime logs will be written to vine_example_poncho_worker_info/%Y-%m-%dT%H:%M:%S
-	vine_set_runtime_info_path("vine_example_poncho_info");
-
 	m = vine_create(VINE_DEFAULT_PORT);
 	if(!m) {
 		printf("couldn't create manager: %s\n", strerror(errno));
@@ -32,17 +23,17 @@ int main(int argc, char *argv[])
 	}
 	printf("listening on port %d...\n", vine_port(m));
 
-	struct vine_file *script = vine_declare_file(m, "script_example_for_poncho.py");
+	struct vine_file *script = vine_declare_file(m, "script_example_for_poncho.py", VINE_CACHE);
 
-	struct vine_file *poncho_tarball = vine_declare_file(m, "package.tar.gz");
-	struct vine_file *poncho_expansion = vine_declare_poncho(m, poncho_tarball);
+	struct vine_file *poncho_tarball = vine_declare_file(m, "package.tar.gz", VINE_CACHE);
+	struct vine_file *poncho_env = vine_declare_poncho(m, poncho_tarball, VINE_CACHE);
 
 	for(i=0;i<5;i++) {
 
 		struct vine_task *task = vine_task_create("python my_script.py");
+		vine_task_add_environment(task, poncho_env);
 
-		vine_task_add_input(task, script, "my_script.py", VINE_CACHE);
-		vine_task_add_input(task, poncho_expansion, "package", VINE_CACHE);
+		vine_task_add_input(task, script, "my_script.py", 0);
 
 		int task_id = vine_submit(m, task);
 		printf("submitted task (id# %d): %s\n", task_id, vine_task_get_command(task) );

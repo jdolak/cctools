@@ -225,7 +225,7 @@ int manager_workers_needed_by_resource(struct jx *j) {
 
 struct list* do_direct_query( const char *manager_host, int manager_port )
 {
-	const char * query_string = "queue";
+	const char *query_string = "manager";
 
 	struct link *l;
 
@@ -305,7 +305,6 @@ workers are actually connected.
 static int count_workers_needed( struct list *managers_list, int only_not_running )
 {
 	int needed_workers=0;
-	int managers=0;
 	struct jx *j;
 
 	if(!managers_list) {
@@ -348,7 +347,6 @@ static int count_workers_needed( struct list *managers_list, int only_not_runnin
 
 		debug(D_VINE,"%s %s:%d %s tasks: %d capacity: %d workers needed: %d tasks running: %d",project,host,port,owner,tw+tl+tr,capacity,need,tr);
 		needed_workers += need;
-		managers++;
 	}
 
 	return needed_workers;
@@ -406,7 +404,7 @@ static int submit_worker( struct batch_queue *queue )
 	char *worker = string_format("./%s", worker_command);
 	if(using_catalog) {
 		cmd = string_format(
-		"%s -M %s -t %d -C '%s' %s %s %s %s %s %s",
+		"%s --parent-death -M %s -t %d -C '%s' %s %s %s %s %s %s",
 		worker,
 		submission_regex,
 		worker_timeout,
@@ -420,7 +418,7 @@ static int submit_worker( struct batch_queue *queue )
 		);
 	} else {
 		cmd = string_format(
-		"%s %s %d -t %d -C '%s' %s %s %s %s %s",
+		"%s --parent-death %s %d -t %d -C '%s' %s %s %s %s %s",
 		worker,
 		manager_host,
 		manager_port,
@@ -1013,7 +1011,7 @@ static void mainloop( struct batch_queue *queue )
 
 		char *update_str = jx_print_string(j);
 		debug(D_VINE, "Sending status to the catalog server(s) at %s ...", catalog_host);
-		catalog_query_send_update(catalog_host, update_str);
+		catalog_query_send_update(catalog_host,update_str,0);
 		print_stats(j);
 		free(update_str);
 		jx_delete(j);
@@ -1581,4 +1579,4 @@ int main(int argc, char *argv[])
 	return 0;
 }
 
-/* vim: set noexpandtab tabstop=4: */
+/* vim: set noexpandtab tabstop=8: */

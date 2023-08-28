@@ -10,7 +10,6 @@ SOURCES = \
 	vine_transfer.c \
 	vine_transfer_server.c \
 	vine_process.c \
-	vine_coprocess.c \
 	vine_watcher.c \
 	vine_gpus.c
 
@@ -31,4 +30,16 @@ clean:
 
 test: all
 
-.PHONY: all clean install test
+lint:
+	if ( ! clang-format -Werror --dry-run --style='file:../../../.clang-format' $(SOURCES) vine_worker.c);\
+	then\
+        echo  "========================================================";\
+        echo  "NOTICE: Run `make format` to format your latest changes.";\
+        echo  "========================================================";\
+		exit 1;\
+    fi
+
+format:
+	clang-format -i $(SOURCES) vine_worker.c
+
+.PHONY: all clean install test lint format
