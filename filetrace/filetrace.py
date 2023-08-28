@@ -7,7 +7,7 @@ import operator
 from collections import defaultdict
 import json
 from glob import glob
-
+import argparse
 
 PATH1_RE = re.compile("</.+?>")
 PATH2_RE = re.compile("<.+?>,")
@@ -28,47 +28,16 @@ ACTION_PRIORITY = {
     "WR": 8,
 }
 
-
-# Classes
-class Properties:
-    def __init__(
-        self,
-        path="",
-        action="?",
-        freq=0,
-        read_freq=0,
-        write_freq=0,
-        sub_pid=[],
-        read_size=0,
-        write_size=0,
-        size=0,
-    ):
-        self.path = path
-        self.action = action
-        self.freq = freq
-        self.read_freq = read_freq
-        self.read_size = read_size
-        self.write_freq = write_freq
-        self.write_size = write_size
-        self.sub_pid = sub_pid.copy()
-        self.size = size
-
-    def convert_dict(self, path_dict):
-        for key in path_dict:
-
-            path_dict[key] = Properties(
-                path=path_dict[key]["path"],
-                action=path_dict[key]["action"],
-                freq=path_dict[key]["freq"],
-                read_freq=path_dict[key]["read_freq"],
-                write_freq=path_dict[key]["write_freq"],
-                sub_pid=path_dict[key]["sub_pid"],
-                read_size=path_dict[key]["read_size"],
-                write_size=path_dict[key]["write_size"],
-                size=path_dict[key]["size"],
-            )
-        return path_dict
-
+PROPERTIES = {}
+PROPERTIES["path"] = ""
+PROPERTIES["action"] = "?"
+PROPERTIES["freq"] = 0
+PROPERTIES["read_freq"] = 0
+PROPERTIES["write_freq"] = 0
+PROPERTIES["sub_pid"] = []
+PROPERTIES["read_size"] = 0
+PROPERTIES["write_size"] = 0
+PROPERTIES["size"] = 0
 
 # Funtions
 def usage():
@@ -106,51 +75,56 @@ def create_dict(name):
     path_dict = {}
     subprocess_dict = {}
     call_counter = -1
-    print()
 
-    with open(name + ".filetrace-1.txt") as file:
-        for line in file:
-            call_counter += 1
-            if "openat(" in line or "stat" in line:
-                try:  # Try get file path
-                    path = PATH1_RE.search(line).group(0).strip("<>")
-                except AttributeError:  # AttributeError if file not found
-                    try:  # find path for ENOENT
-                        path = line.split('"')[1]
-                    except IndexError:
-                        continue
-                path = os.path.realpath(path)  # make all paths absolute
+    file = open(name + ".filetrace-1.txt")
+
+    for line in file:
+        call_counter += 1
+        if "openat(" in line or "stat" in line:
+            try:  # Try get file path
+                path = PATH1_RE.search(line).group(0).strip("<>")
+            except AttributeError:  # AttributeError if file not found
+                try:  # find path for ENOENT
+                    path = line.split('"')[1]
+                except IndexError:
+                    continue
+            path = os.path.realpath(path)  # make all paths absolute
+
+            if path not in path_dict:
+                path_dict[path] = PROPERTIES.copy()
+                path_dict[path]["path"] = path
+
+            path_dict[path]["action"] = openat_stat_actions(path_dict, path, line)
+            path_dict[path]["freq"] += 1
+
+            if line.startswith("[pid "):  # checks is it is a subprocess
+                path_dict[path]["sub_pid"].append(
+                    PID1_RE.search(line).group(0).strip("[pid ]")
+                )
+
+        elif "read(" in line or "write(" in line:
+            read_write_actions(path_dict, line)
+        elif "mmap(" in line:
+            try:
+                path = PATH2_RE.search(line).group(0).strip("<>,")
+                path = os.path.realpath(path)
 
                 if path not in path_dict:
-                    path_dict[path] = Properties(path=path)
+                    path_dict[path] = PROPERTIES.copy()
+                    path_dict[path]["path"] = path
+                    path_dict[path]["action"] = 'M'
+            except AttributeError:
+                pass
 
-                path_dict[path].action = openat_stat_actions(path_dict, path, line)
-                path_dict[path].freq += 1
-
-                if line.startswith("[pid "):  # checks is it is a subprocess
-                    path_dict[path].sub_pid.append(
-                        PID1_RE.search(line).group(0).strip("[pid ]")
-                    )
-
-            elif "read(" in line or "write(" in line:
-                read_write_actions(path_dict, line)
-            elif "mmap(" in line:
-                try:
-                    path = PATH2_RE.search(line).group(0).strip("<>,")
-                    path = os.path.realpath(path)
-
-                    if path not in path_dict:
-                        path_dict[path] = Properties(path=path, action="M")
-                except AttributeError:
-                    pass
-
-            if "strace: Process " in line:  # new process created
-                find_pid(line, subprocess_dict)
-            if "execve" in line:  # finds command associated with process
-                find_command(line, subprocess_dict)
+        if "strace: Process " in line:  # new process created
+            find_pid(line, subprocess_dict)
+        if "execve" in line:  # finds command associated with process
+            find_command(line, subprocess_dict)
+        
+        if call_counter < 1000 or call_counter % 1000 == 0:
+            print(f"filetrace: syscalls processed: {call_counter}", end="\r")
             
-            if call_counter < 1000 or call_counter % 1000 == 0:
-                print(f"filetrace: syscalls processed: {call_counter}", end="\r")
+    file.close()
 
     return path_dict, subprocess_dict
 
@@ -184,7 +158,7 @@ def openat_stat_actions(path_dict, path, line):
         else:
             action = "S"
 
-    old_action = path_dict[path].action
+    old_action = path_dict[path]["action"]
     if ACTION_PRIORITY[old_action] > ACTION_PRIORITY[action]:
         action = old_action
     return action
@@ -200,20 +174,21 @@ def read_write_actions(path_dict, line):
         return 0
 
     if path not in path_dict:
-        path_dict[path] = Properties(path=path)
+        path_dict[path] = PROPERTIES.copy()
+        path_dict[path]["path"] = path 
 
     if "read(" in line:
-        path_dict[path].action = "R"
-        path_dict[path].read_freq += 1
-        path_dict[path].read_size += bytes_returned
+        path_dict[path]["action"] = "R"
+        path_dict[path]["read_freq"] += 1
+        path_dict[path]["read_size"] += bytes_returned
     elif "write(" in line:
-        path_dict[path].action = "W"
-        path_dict[path].write_freq += 1
-        path_dict[path].write_size += bytes_returned
-    if (path_dict[path].read_freq > 0) and (path_dict[path].write_freq > 0):
-        path_dict[path].action = "WR"
-    path_dict[path].size += bytes_returned
-    path_dict[path].freq = path_dict[path].read_freq + path_dict[path].write_freq
+        path_dict[path]["action"] = "W"
+        path_dict[path]["write_freq"] += 1
+        path_dict[path]["write_size"] += bytes_returned
+    if (path_dict[path]["read_freq"] > 0) and (path_dict[path]["write_freq"] > 0):
+        path_dict[path]["action"] = "WR"
+    path_dict[path]["size"] += bytes_returned
+    path_dict[path]["freq"] = path_dict[path]["read_freq"] + path_dict[path]["write_freq"]
 
 
 def print_summary_2(path_dict, name, master):
@@ -225,13 +200,13 @@ def print_summary_2(path_dict, name, master):
 
     for file in sorted(
         path_dict.values(),
-        key=operator.attrgetter("action", "size", "freq"),
+        key=operator.itemgetter("action", "size", "freq"),
         reverse=True,
     ):
-        action = file.action
-        freq = file.freq
-        size = file.size
-        path = file.path
+        action = file["action"]
+        freq = file["freq"]
+        size = file["size"]
+        path = file["path"]
 
         f.write(f"{action:>4}{convert_bytes(size):>8} {freq:<5}  {path}\n")
 
@@ -268,7 +243,7 @@ def print_subprocess_summary(subprocess_dict, name):
         f.write(f"pid : {pid} : {command}\n")
 
         for file in subprocess_dict[pid]["files"]:
-            f.write(f"  {pid}   {file.action:4}{file.path}\n")
+            f.write(f"  {pid}   {file['action']:4}{file['path']}\n")
         f.write("\n\n")
 
     f.close()
@@ -286,10 +261,10 @@ def find_major_directories(path_dict, subprocess_dict, top, dirLvl, name):
     major_paths.insert(0, "/usr/lib64/")
 
     for path in path_dict:
-        action = path_dict[path].action
-        freq = path_dict[path].freq
-        size = path_dict[path].size
-        sub_pid = path_dict[path].sub_pid
+        action = path_dict[path]["action"]
+        freq = path_dict[path]["freq"]
+        size = path_dict[path]["size"]
+        sub_pid = path_dict[path]["sub_pid"]
 
         for short_path in major_paths:
             if short_path in path:
@@ -397,9 +372,6 @@ def end_of_execute(name):
 
 
 def create_json(name, path_dict, subprocess_dict):
-    for key, value in path_dict.items():
-        value = vars(value)
-        path_dict[key] = value
 
     json_data = json.dumps(path_dict)
     f = open(f"filetrace-path-{name}.json", "w")
@@ -420,7 +392,7 @@ def create_json(name, path_dict, subprocess_dict):
 def load_path_json():
     files = glob("filetrace-path*.json")
     path_dict = json.load(open(files.pop(), "r"))
-    x = Properties()
+    x = PROPERTIES.copy()
 
     for filename in files:
         json_dict = json.load(open(filename, "r"))
@@ -436,7 +408,6 @@ def load_path_json():
                         path_dict[path][property] += value
             else:
                 path_dict[path] = properties
-    path_dict = x.convert_dict(path_dict)
     return path_dict
 
 
@@ -452,8 +423,8 @@ def load_process_json():
     return process_dict
 
 
-def remove_files():
-    files = glob("*.filetrace-*.txt") + glob("filetrace-*.json")
+def remove_files(name):
+    files = glob(f"{name}.filetrace-*.txt") + glob(f"filetrace-*{name}.json")
     if not files:
         print("no files to remove.")
         return
@@ -467,59 +438,51 @@ def remove_files():
 
 # Main
 def main():
-    top = -1
-    dirLvl = 5
-    json = 0
-    assemble = 0
-    name = 0
 
-    arguments = sys.argv[1:]
+    parser = argparse.ArgumentParser(
+        prog='filetrace',
+        description='What the program does')
+ 
 
-    while arguments and arguments[0].startswith("-"):
-        arg = arguments.pop(0)
-        if arg == "--clean":
-            remove_files()
+    parser = argparse.ArgumentParser(
+                    description='traces files')
 
-            sys.exit(0)
-        elif arg == "-h" or arg == "--help":
-            usage()
-        elif arg == "-d":
-            dirLvl = int(arguments.pop(0)) + 1
-        elif arg == "-t" or arg == "-top":
-            top = int(arguments.pop(0))
-        elif arg == "-j" or arg == "--json":
-            json = 1
-        elif arg == "-a" or arg == "--assemble":
-            assemble = 1
-        elif arg == "-n" or arg == "--name":
-            name = arguments.pop(0)
-        else:
-            continue
+    parser.add_argument('-a', '--assemble', action='store_true')
+    parser.add_argument('-j', '--json', action='store_true')
+    parser.add_argument('-t','--top', nargs='?', type=int, action='store', default='-1')
+    parser.add_argument('-d','--dirlvl', nargs='?', type=int, action='store', default='5')
+    parser.add_argument('-n','--name', nargs='?',action='store')
+    parser.add_argument('--clean',action='store_true')
 
-    if len(arguments) == 0:
-        usage()
+    parser.add_argument('cmd', nargs='+',action='store')
+
+    arg = parser.parse_args()
+    name = arg.name
 
     if not name:
-        name = arguments[0]
+        name = arg.cmd[0]
 
-    if not assemble:
-        create_trace_file(name, arguments[0:])
-        path_dict, subprocess_dict = create_dict(name)
-    else:
+    if arg.clean:
+        remove_files(name)
+        sys.exit(0)
+
+    if arg.assemble:
         path_dict = load_path_json()
         subprocess_dict = load_process_json()
+    else:
+        create_trace_file(name, arg.cmd)
+        path_dict, subprocess_dict = create_dict(name)
 
-    if json:
+    if arg.json:
         create_json(name, path_dict, subprocess_dict)
         sys.exit(0)
 
-    print_summary_2(path_dict, name, assemble)
-    find_major_directories(path_dict, subprocess_dict, top, dirLvl, name)
+    print_summary_2(path_dict, name, arg.assemble)
+    find_major_directories(path_dict, subprocess_dict, arg.top, arg.dirlvl, name)
 
     print_subprocess_summary(subprocess_dict, name)
 
     end_of_execute(name)
-
     sys.exit(0)
 
 
