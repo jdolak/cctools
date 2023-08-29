@@ -34,7 +34,7 @@ PROPERTIES["action"] = "?"
 PROPERTIES["freq"] = 0
 PROPERTIES["read_freq"] = 0
 PROPERTIES["write_freq"] = 0
-PROPERTIES["sub_pid"] = []
+PROPERTIES["sub_pid"] = None
 PROPERTIES["read_size"] = 0
 PROPERTIES["write_size"] = 0
 PROPERTIES["size"] = 0
@@ -74,6 +74,7 @@ def create_dict(name):
     """creates path_dict which the key is the file path and the value is its properties:"""
     path_dict = {}
     subprocess_dict = {}
+    subprocess_dict["parent"] = {"command": "", "files": []}
     call_counter = -1
 
     file = open(name + ".filetrace-1.txt")
@@ -97,10 +98,16 @@ def create_dict(name):
             path_dict[path]["action"] = openat_stat_actions(path_dict, path, line)
             path_dict[path]["freq"] += 1
 
-            if line.startswith("[pid "):  # checks is it is a subprocess
-                path_dict[path]["sub_pid"].append(
-                    PID1_RE.search(line).group(0).strip("[pid ]")
-                )
+            if not path_dict[path]["sub_pid"]:
+                    path_dict[path]["sub_pid"] = [] 
+
+            if line.startswith("[pid "):  # checks is it is a subprocess 
+                pid = PID1_RE.search(line).group(0).strip("[pid ]")
+                if pid not in path_dict[path]["sub_pid"]:
+                    path_dict[path]["sub_pid"].append(pid)
+            elif "parent" not in path_dict[path]["sub_pid"]:
+                path_dict[path]["sub_pid"].append("parent")
+
 
         elif "read(" in line or "write(" in line:
             read_write_actions(path_dict, line)
@@ -117,9 +124,9 @@ def create_dict(name):
                 pass
 
         if "strace: Process " in line:  # new process created
-            find_pid(line, subprocess_dict)
+            subprocess_dict = find_pid(line, subprocess_dict)
         if "execve" in line:  # finds command associated with process
-            find_command(line, subprocess_dict)
+            subprocess_dict = find_command(line, subprocess_dict)
         
         if call_counter < 1000 or call_counter % 1000 == 0:
             print(f"filetrace: syscalls processed: {call_counter}", end="\r")
@@ -131,11 +138,13 @@ def create_dict(name):
 
 def openat_stat_actions(path_dict, path, line):
     """Lablels the action for each path:
-    A  : read but file not found
+    OU  : Open attempted but file not found
     R  : Read only
     W  : Write only
-    RW : Read and write
+    WR : Read and write
     S  : stat
+    SU : stat unsuccessful
+    ?  : unknown
     """
 
     command = line
@@ -197,12 +206,14 @@ def print_summary_2(path_dict, name, master):
     """
     f = open(name + ".filetrace-2.txt", "w")
     f.write(f"action bytes freq path\n")
-
-    for file in sorted(
+    
+    temp = sorted(
         path_dict.values(),
         key=operator.itemgetter("action", "size", "freq"),
         reverse=True,
-    ):
+    )
+
+    for file in sorted(temp, key= lambda x : ACTION_PRIORITY[x["action"]],reverse=True):
         action = file["action"]
         freq = file["freq"]
         size = file["size"]
@@ -220,16 +231,17 @@ def find_command(line, subprocess_dict):
             command = (
                 str(COMMAND_RE.search(line).group(0)).strip("[]").replace('", "', " ")
             )
-            subprocess_dict[pid] = {"command": command, "files": set()}
+            subprocess_dict[pid] = {"command": command, "files": []}
         except AttributeError:
             pass
-    return
+    return subprocess_dict
 
 
 def find_pid(line, subprocess_dict):
     if PROCESS_RE.search(line):
         pid = PROCESS_RE.search(line).group(0).replace("strace: Process ", "")
-        subprocess_dict[pid] = {"command": "", "files": set()}
+        subprocess_dict[pid] = {"command": "", "files": []}
+    return subprocess_dict
 
 
 def print_subprocess_summary(subprocess_dict, name):
@@ -282,9 +294,7 @@ def find_major_directories(path_dict, subprocess_dict, top, dirLvl, name):
         if sub_pid:
             try:
                 for pid in sub_pid:
-                    if type(subprocess_dict[pid]["files"]) == set:
-                        subprocess_dict[pid]["files"].add(path_dict[path])
-                    else:
+                    if path_dict[path] not in subprocess_dict[pid]["files"]:
                         subprocess_dict[pid]["files"].append(path_dict[path])
             except KeyError:
                 pass
@@ -460,7 +470,7 @@ def main():
     name = arg.name
 
     if not name:
-        name = arg.cmd[0]
+        name = arg.cmd[0].strip("./")
 
     if arg.clean:
         remove_files(name)
