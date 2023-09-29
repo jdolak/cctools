@@ -172,6 +172,27 @@ static void export_environment(struct vine_process *p)
 		setenv("TEMP", p->tmpdir, 1);
 		setenv("TMP", p->tmpdir, 1);
 	}
+	// // // // // // // // 
+	FILE *old_rules, *new_rules; 
+	char ch, cwd[BUFSIZ];
+
+	old_rules = fopen("/afs/crc.nd.edu/user/j/jdolak/nopen/rules.txt","r");
+	new_rules = fopen("./rules.txt","w");
+
+	if (old_rules && new_rules && in_lib && out_lib) {
+		while( ( ch = fgetc(old_rules) ) != EOF ) fputc(ch, new_rules);
+
+		fputs(getcwd(cwd,BUFSIZ),new_rules);
+
+		while( ( ch = fgetc(old_rules) ) != EOF ) fputc(ch, new_rules);
+		
+		fclose(old_rules);
+		fclose(new_rules);
+
+		//setenv("LD_PRELOAD","/afs/crc.nd.edu/user/j/jdolak/nopen/lib-nopen.so",1);
+		setenv("LD_PRELOAD","./lib-nopen.so",1);
+	}
+
 }
 
 static void set_integer_env_var(struct vine_process *p, const char *name, int64_t value)
